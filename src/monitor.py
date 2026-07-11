@@ -200,10 +200,6 @@ class Monitor:
 
             # Threshold evaluation and alerting
             self._evaluate_and_alert(reading)
-            self._check_rate_of_change(reading)
-
-            # Threshold evaluation and alerting
-            self._evaluate_and_alert(reading)
 
         # Batch I/O: CSV (one file open), database (one commit), MQTT
         if successful:
@@ -257,18 +253,19 @@ class Monitor:
         self._check_scheduled_reboot()
 
     def _evaluate_and_alert(self, reading: SensorReading) -> None:
-        """Evaluate thresholds and dispatch alerts/recovery for a reading."""
+        """Evaluate thresholds and dispatch alerts/recovery for a reading.
+
+        Only alerts on state transitions (level changes). Once an alert has
+        been sent for a level, no further alerts are sent until the sensor
+        recovers or escalates to a higher level.
+        """
         new_level, previous_level = self._evaluator.evaluate(
             reading.sensor_name, reading.temperature_c
         )
 
-        # Handle escalation
+        # Only alert on level transitions (escalation)
         if new_level != AlertLevel.NORMAL and new_level != previous_level:
             self._handle_alert(reading, new_level)
-        elif new_level != AlertLevel.NORMAL:
-            state = self._evaluator.get_state(reading.sensor_name)
-            if state.can_send_alert(new_level):
-                self._handle_alert(reading, new_level)
 
         # Handle recovery
         if (
